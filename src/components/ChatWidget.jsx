@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import "./ChatWidget.css";
 
+const BACKEND_URL = "chatbot-backend-production-88fa.up.railway.app";
+
 function ChatWidget() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
@@ -22,7 +24,7 @@ function ChatWidget() {
   useEffect(() => {
     const fetchIndices = async () => {
       try {
-        const res = await fetch("http://localhost:8000/list-indices");
+        const res = await fetch(`${BACKEND_URL}/list-indices`);
         const data = await res.json();
         console.log("Fetched indices:", data.indices);
         setPdfIndices(data.indices || []);
@@ -42,6 +44,7 @@ function ChatWidget() {
       alert("Speech Recognition API not supported in this browser.");
       return;
     }
+
     const SpeechRecognition =
       window.SpeechRecognition || window.webkitSpeechRecognition;
     const recognition = new SpeechRecognition();
@@ -49,9 +52,7 @@ function ChatWidget() {
     recognition.interimResults = false;
     recognition.maxAlternatives = 1;
 
-    recognition.onstart = () => {
-      setListening(true);
-    };
+    recognition.onstart = () => setListening(true);
 
     recognition.onresult = (event) => {
       const transcript = event.results[0][0].transcript;
@@ -64,9 +65,7 @@ function ChatWidget() {
       setListening(false);
     };
 
-    recognition.onend = () => {
-      setListening(false);
-    };
+    recognition.onend = () => setListening(false);
 
     recognitionRef.current = recognition;
   }, []);
@@ -94,7 +93,7 @@ function ChatWidget() {
     setShowExamples(false);
 
     try {
-      const res = await fetch("http://localhost:8000/chat", {
+      const res = await fetch(`${BACKEND_URL}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -127,6 +126,7 @@ function ChatWidget() {
       ]);
     }
   };
+
   const endChat = () => {
     setMessages([]);
     setInput("");
@@ -154,7 +154,7 @@ function ChatWidget() {
     formData.append("file", file);
 
     try {
-      const res = await fetch("http://localhost:8000/upload-pdf", {
+      const res = await fetch(`${BACKEND_URL}/upload-pdf`, {
         method: "POST",
         body: formData,
       });
@@ -162,7 +162,7 @@ function ChatWidget() {
       if (res.ok) {
         alert("PDF uploaded and indexed successfully!");
 
-        const listRes = await fetch("http://localhost:8000/list-indices");
+        const listRes = await fetch(`${BACKEND_URL}/list-indices`);
         const listData = await listRes.json();
         setPdfIndices(listData.indices);
 
