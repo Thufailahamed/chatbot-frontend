@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import "./ChatWidget.css";
 
-const BACKEND_URL = "chatbot-backend-production-88fa.up.railway.app";
+const BACKEND_URL = "https://chatbot-backend-production-88fa.up.railway.app";
 
 function ChatWidget() {
   const [messages, setMessages] = useState([]);
