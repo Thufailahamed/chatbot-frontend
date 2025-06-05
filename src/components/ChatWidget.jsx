@@ -16,11 +16,13 @@ function ChatWidget() {
   const [isUploading, setIsUploading] = useState(false);
   const recognitionRef = useRef(null);
 
+  const BASE_URL = "https://chatbot-backend-production-88fa.up.railway.app";
+
   // Fetch available indices
   useEffect(() => {
     const fetchIndices = async () => {
       try {
-        const res = await fetch("http://localhost:8000/list-indices");
+        const res = await fetch(`${BASE_URL}/list-indices`);
         const data = await res.json();
         console.log("Fetched indices:", data.indices);
       } catch (error) {
@@ -84,7 +86,7 @@ function ChatWidget() {
     setInput("");
 
     try {
-      const res = await fetch("http://localhost:8000/chat", {
+      const res = await fetch(`${BASE_URL}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ messages: [...messages, userMsg] }),
@@ -94,7 +96,6 @@ function ChatWidget() {
 
       let botResponse = data.response;
 
-      // If response is an object, extract the content
       if (typeof data.response === "object" && data.response !== null) {
         botResponse = data.response.content || JSON.stringify(data.response);
       }
@@ -149,7 +150,7 @@ function ChatWidget() {
     formData.append("file", file);
 
     try {
-      const res = await fetch("http://localhost:8000/upload-pdf", {
+      const res = await fetch(`${BASE_URL}/upload-pdf`, {
         method: "POST",
         body: formData,
       });
