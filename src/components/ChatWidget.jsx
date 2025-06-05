@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import "./ChatWidget.css";
 
-const BACKEND_URL = "https://chatbot-backend-production-88fa.up.railway.app";
-
 function ChatWidget() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
@@ -16,55 +14,49 @@ function ChatWidget() {
   const [showExamples, setShowExamples] = useState(true);
   const [listening, setListening] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [useDocument, setUseDocument] = useState(false);
-  const [pdfIndices, setPdfIndices] = useState([]);
-  const [selectedPdfIndex, setSelectedPdfIndex] = useState("");
   const recognitionRef = useRef(null);
 
+  // Fetch available indices
   useEffect(() => {
     const fetchIndices = async () => {
       try {
-        const res = await fetch(`${BACKEND_URL}/list-indices`);
+        const res = await fetch("http://localhost:8000/list-indices");
         const data = await res.json();
         console.log("Fetched indices:", data.indices);
-        setPdfIndices(data.indices || []);
       } catch (error) {
         console.error("Error fetching indices:", error);
-        setPdfIndices([]);
       }
     };
-
     fetchIndices();
   }, []);
 
+  // Speech Recognition Setup
   useEffect(() => {
     if (
       !("webkitSpeechRecognition" in window || "SpeechRecognition" in window)
     ) {
-      alert("Speech Recognition API not supported in this browser.");
+      alert("Speech Recognition API not supported.");
       return;
     }
 
     const SpeechRecognition =
       window.SpeechRecognition || window.webkitSpeechRecognition;
+
     const recognition = new SpeechRecognition();
     recognition.lang = "en-US";
     recognition.interimResults = false;
     recognition.maxAlternatives = 1;
 
     recognition.onstart = () => setListening(true);
-
     recognition.onresult = (event) => {
       const transcript = event.results[0][0].transcript;
       setInput(transcript);
       setListening(false);
     };
-
     recognition.onerror = (event) => {
       console.error("Speech recognition error", event.error);
       setListening(false);
     };
-
     recognition.onend = () => setListening(false);
 
     recognitionRef.current = recognition;
@@ -88,50 +80,53 @@ function ChatWidget() {
     if (!messageToSend.trim()) return;
 
     const userMsg = { sender: "user", text: messageToSend };
-    setMessages((prev) => [...prev, userMsg]);
+    setMessages((prev) => [...prev, userMsg, { sender: "bot", text: "..." }]);
     setInput("");
-    setShowExamples(false);
 
     try {
-      const res = await fetch(`${BACKEND_URL}/chat`, {
+      const res = await fetch("http://localhost:8000/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          messages: [{ sender: "user", text: messageToSend }],
-          use_document: useDocument,
-          index_name: selectedPdfIndex,
-        }),
+        body: JSON.stringify({ messages: [...messages, userMsg] }),
       });
 
       const data = await res.json();
 
-      const botMsg = { sender: "bot", text: data.response };
-      setMessages((prev) => [...prev, botMsg]);
+      let botResponse = data.response;
 
-      if (
-        data.suggestions &&
-        Array.isArray(data.suggestions) &&
-        data.suggestions.length > 0
-      ) {
+      // If response is an object, extract the content
+      if (typeof data.response === "object" && data.response !== null) {
+        botResponse = data.response.content || JSON.stringify(data.response);
+      }
+
+      setMessages((prev) => {
+        const updated = [...prev];
+        updated[updated.length - 1] = { sender: "bot", text: botResponse };
+        return updated;
+      });
+
+      if (data.suggestions?.length > 0) {
         setExamplePrompts(data.suggestions);
         setShowExamples(true);
       } else {
         setShowExamples(false);
       }
     } catch (error) {
-      console.error("Error:", error);
-      setMessages((prev) => [
-        ...prev,
-        { sender: "bot", text: "⚠️ Error fetching response from server." },
-      ]);
+      console.error("Chat error:", error);
+      setMessages((prev) => {
+        const updated = [...prev];
+        updated[updated.length - 1] = {
+          sender: "bot",
+          text: "⚠️ Error fetching response.",
+        };
+        return updated;
+      });
     }
   };
 
   const endChat = () => {
     setMessages([]);
     setInput("");
-    setUseDocument(false);
-    setSelectedPdfIndex("");
     setExamplePrompts([
       "What services does your company offer?",
       "How can I contact support?",
@@ -154,23 +149,13 @@ function ChatWidget() {
     formData.append("file", file);
 
     try {
-      const res = await fetch(`${BACKEND_URL}/upload-pdf`, {
+      const res = await fetch("http://localhost:8000/upload-pdf", {
         method: "POST",
         body: formData,
       });
 
       if (res.ok) {
         alert("PDF uploaded and indexed successfully!");
-
-        const listRes = await fetch(`${BACKEND_URL}/list-indices`);
-        const listData = await listRes.json();
-        setPdfIndices(listData.indices);
-
-        const fileNameNoExt = file.name
-          .replace(".pdf", "")
-          .toLowerCase()
-          .replace(/\s+/g, "_");
-        setSelectedPdfIndex(fileNameNoExt);
       } else {
         const data = await res.json();
         alert("Failed to upload PDF: " + (data.error || "Unknown error"));
@@ -196,7 +181,7 @@ function ChatWidget() {
       {isOpen && (
         <div className="chat-popup">
           <div className="chat-header">
-            <span>LLaMA 3.2 Assistant</span>
+            <span>🤖 LLaMA 3.2 Assistant</span>
             <button className="close-btn" onClick={() => setIsOpen(false)}>
               ✖
             </button>
@@ -227,6 +212,7 @@ function ChatWidget() {
             )}
           </div>
 
+          {/* File Upload Section */}
           <div className="file-upload">
             <input
               type="file"
@@ -239,23 +225,7 @@ function ChatWidget() {
             </button>
           </div>
 
-          {pdfIndices && pdfIndices.length > 0 && (
-            <div className="index-select">
-              <label htmlFor="pdf-index">Select Document:</label>
-              <select
-                id="pdf-index"
-                value={selectedPdfIndex}
-                onChange={(e) => setSelectedPdfIndex(e.target.value)}
-              >
-                {pdfIndices.map((name, idx) => (
-                  <option key={idx} value={name}>
-                    {name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
+          {/* Input Area */}
           <div className="input-area">
             <input
               type="text"
@@ -293,21 +263,10 @@ function ChatWidget() {
             </button>
           </div>
 
-          <div className="doc-mode-toggle">
-            <button
-              className={`doc-btn ${useDocument ? "active" : ""}`}
-              onClick={() => setUseDocument(!useDocument)}
-              disabled={!selectedPdfIndex}
-            >
-              {useDocument
-                ? `Answering from "${selectedPdfIndex}"`
-                : "Answer from PDF"}
-            </button>
-          </div>
-
+          {/* End Chat Button */}
           {messages.length > 0 && (
             <button className="end-chat-btn" onClick={endChat}>
-              End Chat
+              🛑 End Chat
             </button>
           )}
         </div>
